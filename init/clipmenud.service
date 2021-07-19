@@ -1,7 +1,7 @@
 [Unit]
 Description=Clipmenu daemon
-Requires=graphical.target
-After=graphical.target
+Requires=multi-user.target
+After=multi-user.target
 
 [Service]
 ExecStart=/usr/bin/clipmenud

@@ -1,7 +1,9 @@
 [![Tests](https://img.shields.io/travis/cdown/clipmenu/develop.svg)](https://travis-ci.org/cdown/clipmenu)
 
 clipmenu is a simple clipboard manager using [dmenu][] (or [rofi][] with
-`CM_LAUNCHER=rofi`) and [xsel][].
+`CM_LAUNCHER=rofi`) and [xsel][]. 
+
+clipmenu-persist is a fork of clipmenu with rudimentary functionality to back up the current clipboard library, and to make it persistent across sessions. **The rest of the documentation and the usage information have yet to be updated to reflect this functionality.**
 
 # Demo
 

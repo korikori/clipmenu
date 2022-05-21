@@ -56,16 +56,19 @@ get_first_line() {
 debug() { (( CM_DEBUG )) && printf '%s\n' "$@" >&2; }
 
 sig_disable() {
+    if (( _CM_DISABLED )); then
+        info "Received disable signal but we're already disabled, so doing nothing"
+        return
+    fi
+
     info "Received disable signal, suspending clipboard capture"
     _CM_DISABLED=1
-    _CM_FIRST_DISABLE=1
     echo "disabled" > "$status_file"
-    [[ -v _CM_CLIPNOTIFY_PID ]] && kill "$_CM_CLIPNOTIFY_PID"
 }
 
 sig_enable() {
     if ! (( _CM_DISABLED )); then
-        info "Received enable signal but we're not disabled, so doing nothing"
+        info "Received enable signal but we're already enabled, so doing nothing"
         return
     fi
 
@@ -85,13 +88,17 @@ kill_background_jobs() {
     # While we usually _are_, there are no guarantees that we're the process
     # group leader. As such, all we can do is look at the pending jobs. Bash
     # avoids a subshell here, so the job list is in the right shell.
-    local bg
-    bg=$(jobs -p)
+    local -a bg
+    readarray -t bg < <(jobs -p)
 
     # Don't log `kill' failures, since with KillMode=control-group, we're
     # racing with init.
-    [[ $bg ]] && kill -- "$bg" 2>/dev/null
+    (( ${#bg[@]} )) && kill -- "${bg[@]}" 2>/dev/null
 }
+
+# Avoid clipmenu showing "no cache file yet" if we launched it before selecting
+# anything
+touch -- "$cache_file"
 
 if [[ $1 == --help ]] || [[ $1 == -h ]]; then
     cat << 'EOF'
@@ -141,8 +148,8 @@ fi
 
 exec {lock_fd}> "$lock_file"
 
-trap sig_disable USR1
-trap sig_enable USR2
+trap '_CM_TRAP=1; sig_disable' USR1
+trap '_CM_TRAP=1; sig_enable' USR2
 trap 'trap - INT TERM EXIT; kill_background_jobs; exit 0' INT TERM EXIT
 
 while true; do
@@ -150,16 +157,23 @@ while true; do
         # Make sure we're interruptible for the sig_{en,dis}able traps
         clipnotify &
         _CM_CLIPNOTIFY_PID="$!"
-        wait "$_CM_CLIPNOTIFY_PID"
+        if ! wait "$_CM_CLIPNOTIFY_PID" && ! (( _CM_TRAP )); then
+            # X server dead?
+            sleep 10
+            continue
+        fi
+    fi
+
+    # Trapping a signal breaks the `wait`
+    if (( _CM_TRAP )); then
+        # Prevent spawning another clipnotify job restarting the loop
+        kill_background_jobs
+        unset _CM_TRAP
+        continue
     fi
 
     if (( _CM_DISABLED )); then
-        # The first one will just be from interrupting `wait`, so don't print
-        if (( _CM_FIRST_DISABLE )); then
-            unset _CM_FIRST_DISABLE
-        else
-            info "Got a clipboard notification, but we are disabled, skipping"
-        fi
+        info "Got a clipboard notification, but we are disabled, skipping"
         continue
     fi
 

@@ -5,7 +5,12 @@ After=multi-user.target
 [Service]
 ExecStart=/usr/bin/clipmenud
 Restart=always
-RestartSec=500ms
+#RestartSec value of 500ms was too low on some of my devices, causing failure to start on boot/login
+RestartSec=10s
+
+#If you will be using the persist functionality, you will need to specify a directory for your backups, and you probably want to disable the MAX_CLIPS value too
+Environment="CM_BACKUP=~/.config/clipmenu"
+Environment="CM_MAX_CLIPS=0"
 
 MemoryDenyWriteExecute=yes
 NoNewPrivileges=yes
